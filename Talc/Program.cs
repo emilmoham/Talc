@@ -1,5 +1,6 @@
 
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 namespace Talc;
 
@@ -29,6 +30,7 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.MapScalarApiReference();
         }
 
         app.UseHttpsRedirection();
