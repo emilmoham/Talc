@@ -1,0 +1,6 @@
+@Talc_HostAddress = http://localhost:5107
+
+GET {{Talc_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
