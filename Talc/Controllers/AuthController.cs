@@ -1,11 +1,8 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using Talc.Models.Args;
+using Talc.Models.DTOs.Args;
 using Talc.Models.Entities;
+using Talc.Services;
 
 namespace Talc;
 
@@ -13,63 +10,38 @@ namespace Talc;
 [ApiController]
 public class AuthController : Controller 
 {
-  private static User user = new();
+  private readonly IAuthService _authService;
 
-  private readonly IConfiguration _configuration;
-
-  public AuthController(IConfiguration configuration) 
-  {
-    _configuration = configuration;
+  public AuthController(
+    IAuthService authService
+  ) {
+    _authService = authService;
   }
 
   [HttpPost("register")]
-  public IActionResult Register(UserArgs args) {
-    string hashedPassword = new PasswordHasher<User>()
-      .HashPassword(user, args.Password);
-
-    user.Email = args.Email;
-    user.HashedPassword = hashedPassword;
-
+  public async Task<IActionResult> Register(UserArgs args) {
+    User? user = await _authService.RegisterAsync(args);
+    if (user == null) 
+    {
+      return BadRequest("User already exists");
+    }
     return Ok(user);
   }
 
   [HttpPost("login")]
-  public IActionResult Login(UserArgs args) {
-    if (user.Email != args.Email) 
-    {
-      return BadRequest("Login failed");
-    }
-
-    if (new PasswordHasher<User>().VerifyHashedPassword(user, user.HashedPassword, args.Password)
-      == PasswordVerificationResult.Failed)
-    {
-      return BadRequest("Login failed");
-    }
-
-    string token = CreateToken(user);
+  public async Task<IActionResult> Login(UserArgs args) {
+    string? token = await _authService.LoginAsync(args);
+    
+    if (token == null) 
+      return BadRequest("Invalid email or password");
 
     return Ok(token);
   }
 
-  private string CreateToken(User user)
+  [Authorize]
+  [HttpGet("IsAlive")]
+  public IActionResult IsAliveAuthenticated() 
   {
-    List<Claim> claims = new()
-    {
-      new Claim(ClaimTypes.Name, user.Email)
-    };
-
-    SymmetricSecurityKey key = new (Encoding.UTF8.GetBytes(_configuration.GetValue<string>("AppSettings:Token")!));
-
-    SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
-
-    JwtSecurityToken tokenDescriptor = new(
-      issuer: _configuration.GetValue<string>("AppSettings:Issuer"),
-      audience: _configuration.GetValue<string>("AppSettings:Audience"),
-      claims: claims,
-      expires: DateTime.UtcNow.AddHours(1),
-      signingCredentials: credentials
-    );
-
-    return new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
+    return Ok("You are authenticated");
   }
 }

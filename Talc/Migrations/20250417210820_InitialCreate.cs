@@ -33,7 +33,7 @@ namespace Talc.Migrations
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Email = table.Column<string>(type: "TEXT", nullable: false),
-                    Password = table.Column<string>(type: "TEXT", nullable: false)
+                    HashedPassword = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {

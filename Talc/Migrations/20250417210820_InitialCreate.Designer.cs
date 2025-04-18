@@ -11,7 +11,7 @@ using Talc;
 namespace Talc.Migrations
 {
     [DbContext(typeof(ApplicationContext))]
-    [Migration("20250415210444_InitialCreate")]
+    [Migration("20250417210820_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -55,7 +55,7 @@ namespace Talc.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Password")
+                    b.Property<string>("HashedPassword")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

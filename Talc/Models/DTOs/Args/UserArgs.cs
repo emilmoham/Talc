@@ -1,4 +1,4 @@
-namespace Talc.Models.Args;
+namespace Talc.Models.DTOs.Args;
 
 public class UserArgs 
 {
