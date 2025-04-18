@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Talc.Models.DTOs;
 using Talc.Models.DTOs.Args;
 using Talc.Models.Entities;
 using Talc.Services;
@@ -30,12 +31,22 @@ public class AuthController : Controller
 
   [HttpPost("login")]
   public async Task<IActionResult> Login(UserArgs args) {
-    string? token = await _authService.LoginAsync(args);
+    TokenResponse? tokenResponse = await _authService.LoginAsync(args);
     
-    if (token == null) 
+    if (tokenResponse == null) 
       return BadRequest("Invalid email or password");
 
-    return Ok(token);
+    return Ok(tokenResponse);
+  }
+
+  [HttpPost("refresh-token")]
+  public async Task<IActionResult> RefreshToken(RefreshTokenArgs args)
+  {
+    TokenResponse? result = await _authService.RefreshTokensAsync(args);
+    if (result == null || result.AccessToken == null || result.RefreshToken == null)
+      return Unauthorized("Invalid refresh token");
+
+    return Ok(result);
   }
 
   [Authorize]

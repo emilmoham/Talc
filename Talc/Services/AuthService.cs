@@ -6,12 +6,15 @@ using Microsoft.IdentityModel.Tokens;
 using Talc.Models.DTOs.Args;
 using Talc.Models.Entities;
 using Talc.Repositories;
+using System.Security.Cryptography;
+using Talc.Models.DTOs;
 
 namespace Talc.Services;
 
 public interface IAuthService {
+  Task<TokenResponse?> LoginAsync(UserArgs args);
+  Task<TokenResponse?> RefreshTokensAsync(RefreshTokenArgs args);
   Task<User?> RegisterAsync(UserArgs args);
-  Task<string?> LoginAsync(UserArgs args);
 }
 
 public class AuthService : IAuthService
@@ -29,10 +32,10 @@ public class AuthService : IAuthService
     _userRepository = userRepository;
   }
 
-  public async Task<string?> LoginAsync(UserArgs args)
+  public async Task<TokenResponse?> LoginAsync(UserArgs args)
   {
-    User? user = await _userRepository.GetUserAsync(args.Email);
-    if (user == null) 
+    User? user = await _userRepository.GetUserByEmailAsync(args.Email);
+    if (user == null)
     {
       return null;
     }
@@ -42,25 +45,35 @@ public class AuthService : IAuthService
       return null;
     }
 
-    return CreateToken(user);
+    return await CreateTokenResponse(user);
+  }
+
+  public async Task<TokenResponse?> RefreshTokensAsync(RefreshTokenArgs args) 
+  {
+    User? user = await ValidateRefreshTokenAsync(args.UserId, args.RefreshToken);
+
+    if (user == null) 
+      return null;
+
+    return await CreateTokenResponse(user);
   }
 
   public async Task<User?> RegisterAsync(UserArgs args)
   {
-    if (await _userRepository.GetUserAsync(args.Email) != null)
+    if (await _userRepository.GetUserByEmailAsync(args.Email) != null)
       return null;
     
     User user = new User();
     user.Email = args.Email;
     user.HashedPassword = HashPassword(user, args.Password);
     
-    user = await _userRepository.AddUserAsync(user);
+    user = _userRepository.AddUser(user);
     await _userRepository.SaveChangesAsync();
 
     return user;
   }
 
-  private string CreateToken(User user)
+  private string CreateJwt(User user)
   {
     List<Claim> claims = new()
     {
@@ -83,6 +96,38 @@ public class AuthService : IAuthService
     return new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
   }
 
+  private async Task<TokenResponse?> CreateTokenResponse(User user)
+  {
+    string accessToken = CreateJwt(user);
+    string refreshToken = await GenerateAndSaveRefreshTokenAsync(user);
+
+    return new()
+    {
+      AccessToken = accessToken,
+      RefreshToken = refreshToken
+    };
+  }
+
+  private string GenerateRefreshToken()
+  {
+    byte[] randomNumber = new byte[32];
+
+    using RandomNumberGenerator rng = RandomNumberGenerator.Create();
+    
+    rng.GetBytes(randomNumber);
+    return Convert.ToBase64String(randomNumber);
+  }
+
+  private async Task<string> GenerateAndSaveRefreshTokenAsync(User user)
+  {
+    string refreshToken = GenerateRefreshToken();
+    user.RefreshToken = refreshToken;
+    user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(7);
+    _userRepository.UpdateUser(user);
+    await _userRepository.SaveChangesAsync();
+    return refreshToken;
+  }
+
   private string HashPassword(User user, string password) 
   {
     return _passwordHasher.HashPassword(user, password);
@@ -95,5 +140,17 @@ public class AuthService : IAuthService
         user, 
         user.HashedPassword, 
         password) == PasswordVerificationResult.Success;
+  }
+
+  private async Task<User?> ValidateRefreshTokenAsync(Guid userId, string refreshToken)
+  {
+    User? user = await _userRepository.GetUserByIdAsync(userId);
+
+    if (user == null 
+      || user.RefreshToken != refreshToken 
+      || user.RefreshTokenExpiresAt <= DateTimeOffset.UtcNow)
+      return null;
+
+    return user;
   }
 }
